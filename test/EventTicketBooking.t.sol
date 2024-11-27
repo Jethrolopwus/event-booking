@@ -1,19 +1,28 @@
  // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "../src/EventTicketBooking.sol";
 
+contract PayableUser {
+    receive() external payable {}
+}
+
 contract EventTicketBookingTest is Test {
     EventTicketBooking public booking;
     address public owner = address(this);
-    address public user = address(1);
+    address public user;
+    PayableUser public userC;
     uint public ticketPrice = 0.1 ether;
-    uint public maxTickets = 100;
+    uint public maxTickets = 10;
+
+    receive() external payable {}
 
     function setUp() public {
         booking = new EventTicketBooking(ticketPrice, maxTickets);
+        userC = new PayableUser();
+        user = address(userC);
+        vm.deal(user, 10 ether);
     }
 
     function testInitialValues() public view {
@@ -71,16 +80,25 @@ contract EventTicketBookingTest is Test {
     }
 
     function testWithdrawFunds() public {
-        uint quantity = 5;
-        uint eventDateTime = block.timestamp + 1 days;
+    uint quantity = 5;
+    uint eventDateTime = block.timestamp + 1 days;
 
-        vm.prank(user);
-        booking.buyTickets{value: ticketPrice * quantity}(eventDateTime, quantity);
+    vm.prank(user);
+    booking.buyTickets{value: ticketPrice * quantity}(eventDateTime, quantity);
 
-        uint balanceBefore = owner.balance;
-        booking.withdrawFunds();
-        uint balanceAfter = owner.balance;
+    uint contractBalance = address(booking).balance;
+    assertEq(contractBalance, ticketPrice * quantity);
 
-        assertEq(balanceAfter - balanceBefore, ticketPrice * quantity);
-    }
+
+    uint balanceBefore = owner.balance;
+    console.log(balanceBefore);
+
+    vm.prank(owner); 
+    booking.withdrawFunds();
+
+   
+    uint balanceAfter = owner.balance;
+    assertEq(balanceAfter - balanceBefore, ticketPrice * quantity);
+}
+
 }

@@ -5,6 +5,8 @@ contract EventTicketBooking {
     struct Ticket {
         uint id;
         address buyer;
+        uint quantity;
+        uint amount;
         uint eventDateTime;
     }
 
@@ -63,7 +65,7 @@ contract EventTicketBooking {
 
         for (uint i = 0; i < quantity; i++) {
             ticketsSold++;
-            tickets[ticketsSold] = Ticket(ticketsSold, msg.sender, _eventDateTime);
+            tickets[ticketsSold] = Ticket(ticketsSold, msg.sender, quantity, quantity*ticketPrice, _eventDateTime);
             emit TicketPurchased(msg.sender, ticketsSold, _eventDateTime);
         }
     }
@@ -75,7 +77,8 @@ contract EventTicketBooking {
         delete tickets[_ticketId];
         ticketsSold--;
 
-        payable(msg.sender).transfer(ticketPrice);
+        (bool success, ) = payable(msg.sender).call{value: ticket.amount}("");
+        require(success, "Refund failed");
 
         emit TicketRefunded(msg.sender, _ticketId);
     }
@@ -87,14 +90,22 @@ contract EventTicketBooking {
         emit EventUpdated(_newTicketPrice, _newMaxTickets);
     }
 
-    function withdrawFunds() external onlyOwner nonReentrant {
-        if (address(this).balance == 0) revert InsufficientContractBalance();
+    function withdrawFunds() public {
+    require(msg.sender == owner, "Only owner can withdraw funds");
+    uint balance = address(this).balance;
+    require(balance > 0, "No funds to withdraw");
 
-        payable(owner).transfer(address(this).balance);
-    }
+    (bool success, ) = payable(owner).call{value: balance}("");
+    require(success, "Transfer failed");
+}
+
 
     function getAvailableTickets() external view returns (uint) {
         return maxTickets - ticketsSold;
+    }
+
+    function getOwner() public view returns (address) {
+        return owner;
     }
 
     receive() external payable {
